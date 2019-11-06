@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Environment:
+    Type: String
+  Input:
+    Type: String
+    Description: Stream Name of Kinesis Datastream Data Source to ingest
+  AppName:
+    Type: String
+  Bucket:
+    Type: String
+  JarFilename:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: flink-app-filename
+
+Resources:
+  ServiceExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: kinesisanalytics.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: Logging
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AppName}-${Environment}:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AppName}-${Environment}:log-stream:*'
+        - PolicyName: Metrics
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - ssm:GetParameters
+                  - ssm:GetParameter
+                Resource:
+                  - '*'
+        - PolicyName: SSM
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/flink-app-filename'
+        - PolicyName: FetchCode
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject*
+                  - s3:GetBucket*
+                  - s3:List*
+                Resource:
+                  - !Sub 'arn:aws:s3:::${Bucket}'
+                  - !Sub 'arn:aws:s3:::${Bucket}/*'
+        - PolicyName: ReadInputKinesis
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:DescribeStream
+                  - kinesis:GetShardIterator
+                  - kinesis:GetRecords
+                  - kinesis:ListShards
+                Resource: !Sub 'arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${Input}'
+        - PolicyName: WriteOutputKinesis
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:DescribeStream
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                Resource: !Sub 'arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${Output}'
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !Sub '${AppName}-${Environment}'
+
+  LogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref LogGroup
+      LogStreamName: !Ref JarFilename
+
+  JavaApplication:
+    Type: AWS::KinesisAnalyticsV2::Application
+    DependsOn: LogStream
+    Properties:
+      ApplicationName: !Sub '${AppName}-${Environment}'
+      ApplicationDescription: Racing Data
+      RuntimeEnvironment: FLINK-1_6
+      ServiceExecutionRole: !GetAtt ServiceExecutionRole.Arn
+      ApplicationConfiguration:
+        FlinkApplicationConfiguration:
+          CheckpointConfiguration:
+            CheckpointInterval: 60000
+            CheckpointingEnabled: true
+            ConfigurationType: CUSTOM
+            MinPauseBetweenCheckpoints: 10000
+          MonitoringConfiguration:
+            ConfigurationType: CUSTOM
+            LogLevel: INFO  # DEBUG | ERROR | INFO | WARN
+            MetricsLevel: OPERATOR  # APPLICATION | OPERATOR | PARALLELISM | TASK
+          ParallelismConfiguration:
+            AutoScalingEnabled: true
+            ConfigurationType: CUSTOM
+            Parallelism: 2
+            ParallelismPerKPU: 1
+        ApplicationCodeConfiguration:
+          CodeContent:
+            S3ContentLocation:
+              BucketARN: !Sub 'arn:aws:s3:::${Bucket}'
+              FileKey: !Ref JarFilename
+          CodeContentType: ZIPFILE
+        ApplicationSnapshotConfiguration:
+          SnapshotsEnabled: false
+        EnvironmentProperties:
+          PropertyGroups:
+            - PropertyGroupId: "RacingDataConfigProperties"
+              PropertyMap:
+                inputStreamName: !Ref Input
+                outputStreamName: !Ref Output
+                aws.region: !Ref AWS::Region
+                link.stream.initpos: LATEST
+                AggregationEnabled: false
+                Partition: "0"
+
+  ApplicationV2CloudWatchLoggingOption:
+    Type: AWS::KinesisAnalyticsV2::ApplicationCloudWatchLoggingOption
+    DependsOn: JavaApplication
+    Properties:
+      ApplicationName: !Sub '${AppName}-${Environment}'
+      CloudWatchLoggingOption:
+        LogStreamARN: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${AppName}-${Environment}:log-stream:${LogStream}'
+
+  Output:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      Name: !Sub '${AppName}-outputStream-${Environment}'
+      ShardCount: 1
+
+  CWDashboard:
+    Type: 'AWS::CloudWatch::Dashboard'
+    Properties:
+      DashboardName: !Sub '${AppName}${Environment}'
+      DashboardBody: !Sub '
+      {
+        "widgets": [
+          {
+            "type":"metric",
+            "x":0,
+            "y":0,
+            "width":15,
+            "height":9,
+            "properties":{
+              "metrics":[
+                [
+                  "AWS/KinesisAnalytics",
+                  "lastCheckpointDuration",
+                  "Application",
+                  "${AppName}-${Environment}"
+                ],
+                [
+                  ".",
+                  "downtime",
+                  ".",
+                  "."
+                ],
+                [
+                  ".",
+                  "millisBehindLatest",
+                  "Id",
+                  "${Input}",
+                  "Application",
+                  "${AppName}-${Environment}",
+                  "Flow",
+                  "Input"
+                ],
+                [
+                  "AWS/Kinesis",
+                  "WriteProvisionedThroughputExceeded",
+                  "StreamName",
+                  "${Output}"
+                ],
+                [
+                  ".",
+                  "ReadProvisionedThroughputExceeded",
+                  ".",
+                  "${Input}"
+                ],
+                [
+                  ".",
+                  "PutRecords.Bytes",
+                  ".",
+                  "${Output}"
+                ],
+                [
+                  ".",
+                  "GetRecords.Bytes",
+                  ".",
+                  "${Input}"
+                ]
+                ],
+                "period":300,
+                "stat":"Average",
+                "region":"${AWS::Region}",
+                "title":"Kinesis Analytics Flink DataProcessing"
+                }
+              },
+              {
+                "type":"text",
+                "x":0,
+                "y":7, 
+                "width":3,
+                "height":3,
+                "properties": {
+                  "markdown":"Kinesis Analytics Metrics, Kinesis Datastreams as source and destination sink"
+                  }
+                }
+              ]
+            }'
+
+Outputs:
+  ApplicationPhysicalResourceId:
+    Value: !Ref JavaApplication
+  OutputStream:
+    Description: A stack export of this application's output stream
+    Value: !Ref Output
+    Export:
+      Name: !Sub '${AppName}-outputStream-${Environment}'

@@ -1,0 +1,18 @@
+{
+    "Parameters": {
+        "GitHubOwner": "owner-dude",
+        "GitHubRepo": "repo-project-name",
+        "GitHubBranch": "master",
+        "CodePipelineBucketName": "codepipeline-kinesis-bucket",
+        "ArtifactBucketName": "racing-analytic-app-jar",
+        "CloudFormationDeployActionRoleName": "CFN-DEPLOYER",
+        "CodePipelineRoleName": "pipeline-kinesis-role",
+        "CodePipelineName": "racing-kinesis-analytics",
+        "AdministerPipelineStackName": "racing-analytics-pipeline-admin",
+        "BuildSpecFile": "src/buildspec_racing.yml",
+        "CodeBuildProjectName": "RacingCodeBuild",
+        "SandboxAccountId": "0123456789012",
+        "SandboxDeployActionRoleName": "SandboxCFNDeployer",
+        "SandboxDeployAssumeRoleName": "SandboxCFNAssume"
+    }
+}

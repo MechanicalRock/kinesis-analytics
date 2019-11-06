@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  ToolingAccountId:
+    Type: String
+    Default: '123456789012'
+  ToolingBuildBucketName:
+    Type: String
+    Default: codepipeline-bucket
+    Description: This is the name of the S3 bucket which hosts the Cloudformation scripts we will be deploying
+  CloudFormationAssumeRoleName:
+    Type: String
+    Default: SandboxCFNAssumeName
+    Description: The name of the role that is assumed to trigger a cloudformation deployment
+  CloudFormationDeployerRoleName:
+    Type: String
+    Default: SandboxCFNDeployerName 
+    Description: The name of the role that performs the cloudformation deployment
+  CodeBuildAssumeRoleName:
+    Type: String
+    Default: SandboxCodeBuildAssumeName
+    Description: The name of the role that is assumed in codebuild
+
+Resources:
+  CloudFormationAssumeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CloudFormationAssumeRoleName
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: [!Ref ToolingAccountId]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: cross-account-assume-role
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action: ['*']
+                Resource: ['*']
+                Effect: Allow
+
+  CloudFormationDeployerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CloudFormationDeployerRoleName
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+                - s3.amazonaws.com
+            Action: ['sts:AssumeRole']
+          - Effect: Allow
+            Principal:
+              AWS: [!Ref ToolingAccountId]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: cross-account-cloudformation-deployment
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - 'cloudformation:*'
+                  - 'cloudwatch:*'
+                  - 'codebuild:*'
+                  - 'iam:*'
+                  - 'kinesis:*'
+                  - 'kinesisanalytics:DescribeApplication'
+                  - 'kinesisanalytics:CreateApplication'
+                  - 'kinesisanalytics:UpdateApplication'
+                  - 'logs:*'
+                  - 's3:*'
+                Effect: Allow
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:*'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${ToolingBuildBucketName}'
+                  - !Sub 'arn:aws:s3:::${ToolingBuildBucketName}/*'
+              - Effect: Allow
+                Action:
+                  - 'ssm:GetParameters'
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/flink-app-filename'
+
+  CodeBuildAssumeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CodeBuildAssumeRoleName
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: [!Ref ToolingAccountId]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: cross-account-assume-role
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action: ['*']
+                Resource: ['*']
+                Effect: Allow
+

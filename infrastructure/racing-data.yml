@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Input:
+    Type: String
+    Description: Stream Name of Kinesis Datastream to use as input
+ 
+Resources:
+  InputDataStream:
+      Type: 'AWS::Kinesis::Stream'
+      Properties:
+        Name: !Ref Input
+        ShardCount: 1
+
+Outputs:
+  InputStream:
+    Description: A stack export of this application's data source stream
+    Value: !Ref InputDataStream
+    Export:
+      Name: !Ref Input

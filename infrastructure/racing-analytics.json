@@ -1,0 +1,8 @@
+{
+    "Parameters": {
+        "Environment": "sandbox",
+        "Input": "racingdata-ingest-stream",
+        "AppName": "race-analytics",
+        "Bucket": "racing-analytic-app-jar"
+    }
+}

@@ -1,0 +1,386 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  # Pipeline parameters
+  GitHubOwner:
+    Type: String
+  GitHubRepo:
+    Type: String
+  GitHubBranch:
+    Type: String
+  CodePipelineBucketName:
+    Type: String
+    Description: The name of the S3 bucket to create that will be used to store artifacts from CodePipeline execution runs.
+  ArtifactBucketName:
+    Type: String
+    Description: Bucket where the Flink Jar artifact is published to
+  CloudFormationDeployActionRoleName:
+    Type: String
+    Description: The name of the IAM role that will be created to run the CloudFormation deployment action as.
+  CodePipelineRoleName:
+    Type: String
+    Description: The name of the IAM role that will be created for the CodePipeline to use.
+  CodePipelineName:
+    Type: String
+    Description: The name of the CodePipeline to create.
+  AdministerPipelineStackName:
+    Type: String
+    Description: The stack name for managing this pipeline
+  CodeBuildProjectName:
+    Type: String
+    Description: The name of the codebuild project 
+  BuildSpecFile:
+    Type: String
+    Description: CodeBuild Spec file for flink app build
+  # Sandbox Account Parameters
+  SandboxAccountId:
+    Type: String
+    Description: The ID of the staging account where build output is deployed.
+  SandboxDeployAssumeRoleName:
+    Type: String
+    Description: The name of the role that is assumed to trigger a cloudformation deployment cross account
+  SandboxDeployActionRoleName:
+    Type: String
+    Description: The name of the role that performs the cloudformation deployment
+
+Resources:
+  CodePipelineBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref KMSKey
+      BucketName: !Ref CodePipelineBucketName
+
+  CodePipelineBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CodePipelineBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: ["s3:*"]
+            Effect: Allow
+            Resource:
+              - !Sub "arn:aws:s3:::${CodePipelineBucket}"
+              - !Sub "arn:aws:s3:::${CodePipelineBucket}/*"
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                - !Sub "arn:aws:iam::${SandboxAccountId}:root"
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ArtifactBucketName
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: ["s3:*"]
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${ArtifactBucket}
+              - !Sub arn:aws:s3:::${ArtifactBucket}/*
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                - !Sub "arn:aws:iam::${SandboxAccountId}:root"
+
+  CloudFormationDeployActionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [cloudformation.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CloudFormationRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'cloudformation:*'
+                  - 'codepipeline:*'
+                  - 'iam:*'
+                  - 's3:*'
+                  - 'kms:*'
+                  - 'codebuild:*'
+                  - 'secretsmanager:GetSecretValue'
+                  - 'ssm:*'
+                Effect: Allow
+                Resource: '*'
+      RoleName: !Ref CloudFormationDeployActionRoleName 
+  
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [codebuild.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CodeBuildAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow # Minimum permissions to deploy the project
+                Action:
+                  - 'cloudformation:DescribeStacks'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:PutLogEvents'
+                  - 's3:GetObject*'
+                  - 's3:PutObject*'
+                  - 'kinesis:PutRecord'
+                  - 'kinesis:GetRecords'
+                  - 'kinesis:ListShards'
+                  - 'kinesis:GetShardIterator'
+                  - 'sts:AssumeRole'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildProjectName}*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*'
+                  - !Sub 'arn:aws:s3:::${CodePipelineBucket}'
+                  - !Sub 'arn:aws:s3:::${CodePipelineBucket}/*'
+                  - !Sub 'arn:aws:iam::${SandboxAccountId}:role/SandboxCodeBuildAssume'
+              - Effect: Allow # Grant access to the shared build KMS key
+                Action:
+                  - 'kms:Decrypt'
+                  - 'kms:DescribeKey'
+                  - 'kms:Encrypt'
+                  - 'kms:GenerateDataKey*'
+                  - 'kms:ReEncrypt*'
+                Resource:
+                  - !GetAtt KMSKey.Arn
+
+  CodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Artifacts:
+        Packaging: ZIP
+        Type: CODEPIPELINE
+      Cache:
+        Location: !Sub '${CodePipelineBucketName}/${CodeBuildProjectName}'
+        Type: S3
+      Description: !Sub "Build the ${CodeBuildProjectName}"
+      EncryptionKey: !GetAtt KMSKey.Arn
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL # BUILD_GENERAL1_SMALL(3GB/2vCPUs) | BUILD_GENERAL1_MEDIUM(7GB/4vCPUs) | BUILD_GENERAL1_LARGE(15GB/8vCPUs)
+        # EnvironmentVariables:
+        #   - Name: String
+        #     Type: PARAMETER_STORE | PLAINTEXT
+        #     Value: String
+        Image: aws/codebuild/standard:2.0
+        PrivilegedMode: true
+        Type: LINUX_CONTAINER
+      Name: !Ref CodeBuildProjectName
+      QueuedTimeoutInMinutes: 10
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        BuildSpec: !Ref BuildSpecFile
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 10
+  
+  KMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Used by Assumed Roles in Dev/Test/Prod accounts to Encrypt/Decrypt code
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: !Ref AWS::StackName
+        Statement:
+          - Sid: Allows admin of the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action:
+              - kms:*
+            Resource: "*"
+          - Sid: Allow use of key in another account
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${SandboxAccountId}:root"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+
+  CodePipelineRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: codepipeline-service
+          PolicyDocument:
+            Statement:
+              - Action: ["sts:AssumeRole"]
+                Effect: Allow
+                Resource:
+                  - !GetAtt CloudFormationDeployActionRole.Arn
+                  - !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
+                  - !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
+              - Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:PutObject
+                  - cloudformation:GetTemplate
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateStack
+                  - 'iam:PassRole'
+                  - 'kms:*'
+                  - 'codebuild:*'
+                  - 'ssm:*'
+                Effect: Allow
+                Resource: '*'    
+            Version: 2012-10-17
+      RoleName: !Ref CodePipelineRoleName
+
+  CodePipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineBucket
+        EncryptionKey:
+          Type: KMS
+          Id: !Ref KMSKey
+      Name: !Ref CodePipelineName
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - InputArtifacts: []
+              Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: '1'
+                Provider: GitHub
+              OutputArtifacts:
+                - Name:  'GitHubSource'
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                PollForSourceChanges: true
+                OAuthToken: '{{resolve:secretsmanager:SECRET_NAME:SecretString:abcdefghijk}}'
+              RunOrder: 1
+        - Name: AdministerPipeline
+          Actions:
+            - Name: AdministerPipeline
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: "1"
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !GetAtt CloudFormationDeployActionRole.Arn
+                StackName: !Ref AdministerPipelineStackName
+                TemplateConfiguration: GitHubSource::infrastructure/pipeline_seed.json
+                TemplatePath: GitHubSource::infrastructure/pipeline_seed.yml
+              InputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 10
+        - Name: Build
+          Actions:
+            - Name: FlinkAppBuild
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProjectName
+              InputArtifacts:
+                - Name: GitHubSource
+              OutputArtifacts:
+                - Name: !Join ['', [!Ref 'AWS::StackName', 'BuildFlinkApp']]
+              RunOrder: 10
+            - Name: PublishArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                  BucketName: !Ref ArtifactBucketName
+                  Extract: true
+              InputArtifacts:
+                - Name: !Join ['', [!Ref 'AWS::StackName', 'BuildFlinkApp']]
+              RunOrder: 20
+        - Name: SandboxDeployRacingAnalytics    
+          Actions:
+            - Name: DataSource
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
+                StackName: "RacingDataIngest"
+                TemplateConfiguration: GitHubSource::infrastructure/racing-data.json
+                TemplatePath: GitHubSource::infrastructure/racing-data.yml
+              RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
+              InputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 10
+            - Name: KinesisDataAnalytics
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
+                StackName: "RacingAnalytics"
+                TemplateConfiguration: GitHubSource::infrastructure/racing-analytics.json
+                TemplatePath: GitHubSource::infrastructure/racing-analytics.yml
+              RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
+              InputArtifacts:
+                - Name: GitHubSource
+              RunOrder: 20
+           
+
