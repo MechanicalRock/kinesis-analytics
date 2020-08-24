@@ -46,13 +46,15 @@ public class BasicStreamingJob {
             JsonNode jsonNode = jsonParser.readValue(value, JsonNode.class);
             return new Tuple3<>(
                 jsonNode.get("EVENT_TIME").asText(),
-                jsonNode.get("CAR").asText(),
-                jsonNode.get("VELOCITY").asDouble());
+                jsonNode.get("TICKER").asText(),
+                jsonNode.get("PRICE").asDouble());
         })
         .returns(Types.TUPLE(Types.STRING, Types.STRING, Types.DOUBLE))
-        .keyBy(1) // Logically partition the stream per car model
+        .keyBy(1) // Logically partition the stream per stock ticker id
         .timeWindow(Time.seconds(10), Time.seconds(5)) // Sliding window definition
         .max(2) // Calculate the maximum value over the window
+        // .sum(1) // Should count the number of each stock in the time window
+        
         .map(value -> value.f0 + " ==> " + value.f1 + " : Terminal Velocity: " + value.f2.toString() + "\n")
         .addSink(createKinesisDataStreamSink());
 
