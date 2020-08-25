@@ -10,7 +10,7 @@ import time
 kinesis = boto3.client('kinesis')
 
 stocks = ['AMZN', 'GOOG', 'AZRE', 'ORCL', 'BABA']
-stream = 'cloudtrading-ingest-stream'
+stream = 'stocktrading-ingest-stream'
 
 def genData(cloudPlatform):
     data = {}
@@ -23,7 +23,7 @@ def genData(cloudPlatform):
     return data
 
 tradingVolume = 0
-while tradingVolume <= 50000:
+while tradingVolume <= 100000:
     for cloudPlatform in stocks:
         data = json.dumps(genData(cloudPlatform))
         print(data)
@@ -32,7 +32,7 @@ while tradingVolume <= 50000:
         #     StreamName=stream,
         #     Data=data,
         #     PartitionKey="partitionkey")
-    time.sleep(1)
+    # time.sleep(1)
     tradingVolume += 1
 
 

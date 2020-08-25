@@ -1,0 +1,8 @@
+{
+    "Parameters": {
+        "Environment": "sandbox",
+        "Input": "stocktrading-ingest-stream",
+        "AppName": "stocktrading-analytics",
+        "Bucket": "stocktrading-analytic-app-jar"
+    }
+}
