@@ -44,7 +44,7 @@ phases:
 
 artifacts:
   files:
-    - racing-analytics-${CODEBUILD_RESOLVED_SOURCE_VERSION}.jar
+    - stocktrading-analytics-${CODEBUILD_RESOLVED_SOURCE_VERSION}.jar
   name: $APP_ARTIFACT_NAME
   base-directory: target
 

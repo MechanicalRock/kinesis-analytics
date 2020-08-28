@@ -1,7 +1,7 @@
 # Kinesis Analytics
 AWS Kinesis Data Analytics - Done the DevOps way
 
-The CI/CD environment has been configured with a Build/Tooling account and Sandbox account(which is where the kinesis application and resources are deployed to).
+The CI/CD environment has been configured with a Build/Tooling account and Sandbox account(which is where the kinesis application and resources are deployed to). A good practice when setting your AWS account structure, essentially separating your workload accounts from the tooling/build account which roles with permissions to build and destroy infrastructure you dont want the workload accounts to have. 
 
 Codepipeline performs cross account deployments. 
 

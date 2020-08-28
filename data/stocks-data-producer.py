@@ -32,7 +32,7 @@ while tradingVolume <= 100000:
         #     StreamName=stream,
         #     Data=data,
         #     PartitionKey="partitionkey")
-    # time.sleep(1)
+    time.sleep(1)
     tradingVolume += 1
 
 

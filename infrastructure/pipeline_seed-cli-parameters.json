@@ -17,7 +17,7 @@
     },
     {
         "ParameterKey": "ArtifactBucketName",
-        "ParameterValue": "racing-analytic-app-jar"
+        "ParameterValue": "stocktrading-analytic-app-jar"
     },
     {
         "ParameterKey": "CodePipelineRoleName",
@@ -29,11 +29,11 @@
     },
     {
         "ParameterKey": "CodePipelineName",
-        "ParameterValue": "racing-kinesis-analytics"
+        "ParameterValue": "stocktrading-kinesis-analytics"
     },
     {
         "ParameterKey": "AdministerPipelineStackName",
-        "ParameterValue": "racing-analytics-pipeline-admin"
+        "ParameterValue": "stocktrading-analytics-pipeline-admin"
     },
     {
         "ParameterKey": "SandboxAccountId",
@@ -41,10 +41,10 @@
     },
     {
         "ParameterKey": "BuildSpecFile",
-        "ParameterValue": "src/buildspec_racing.yml"
+        "ParameterValue": "src/buildspec_stocks.yml"
     },
     {
         "ParameterKey": "CodeBuildProjectName",
-        "ParameterValue": "RacingCodeBuild"
+        "ParameterValue": "StockTradingCodeBuild"
     }
 ]

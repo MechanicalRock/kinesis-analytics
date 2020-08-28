@@ -5,7 +5,7 @@
 
 # Update to use a different AWS profile
 PROFILE=
-STACK_NAME=racing-analytics-pipeline-admin
+STACK_NAME=stocktrading-analytics-pipeline-admin
 
 echo "Create the initial CloudFormation Stack"
 aws --profile ${PROFILE} cloudformation create-stack --stack-name ${STACK_NAME} --template-body file://pipeline_seed.yml --parameters file://pipeline_seed-cli-parameters.json --capabilities "CAPABILITY_NAMED_IAM"

@@ -1,5 +1,5 @@
 {
     "Parameters": {
-        "Input": "racingdata-ingest-stream"
+        "Input": "stocktrading-ingest-stream"
     }
 }

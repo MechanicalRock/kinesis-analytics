@@ -346,7 +346,7 @@ Resources:
               InputArtifacts:
                 - Name: !Join ['', [!Ref 'AWS::StackName', 'BuildFlinkApp']]
               RunOrder: 20
-        - Name: SandboxDeployRacingAnalytics    
+        - Name: SandboxDeployStockTradingAnalytics    
           Actions:
             - Name: DataSource
               ActionTypeId:
@@ -359,8 +359,8 @@ Resources:
                 Capabilities: CAPABILITY_NAMED_IAM
                 RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
                 StackName: "RacingDataIngest"
-                TemplateConfiguration: GitHubSource::infrastructure/racing-data.json
-                TemplatePath: GitHubSource::infrastructure/racing-data.yml
+                TemplateConfiguration: GitHubSource::infrastructure/stocktrading-data.json
+                TemplatePath: GitHubSource::infrastructure/stocktrading-data.yml
               RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
               InputArtifacts:
                 - Name: GitHubSource
@@ -376,8 +376,8 @@ Resources:
                 Capabilities: CAPABILITY_NAMED_IAM
                 RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
                 StackName: "RacingAnalytics"
-                TemplateConfiguration: GitHubSource::infrastructure/racing-analytics.json
-                TemplatePath: GitHubSource::infrastructure/racing-analytics.yml
+                TemplateConfiguration: GitHubSource::infrastructure/stocktrading-analytics.json
+                TemplatePath: GitHubSource::infrastructure/stocktrading-analytics.yml
               RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
               InputArtifacts:
                 - Name: GitHubSource

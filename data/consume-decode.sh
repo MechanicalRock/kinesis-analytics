@@ -1,8 +1,7 @@
 #!/bin/bash
 
 #AWS_PROFILE=
-OUTPUT_STREAM_NAME='race-analytics-outputStream-sandbox'
-# OUTPUT_STREAM_NAME='racingdata-ingest-stream'
+OUTPUT_STREAM_NAME='stocktrading-analytics-outputStream-sandbox'
 JSON_OUTPUT=racing_stats.json
 
 SHARD_ID=`aws --profile $AWS_PROFILE kinesis list-shards --stream-name $OUTPUT_STREAM_NAME | jq -r '.Shards[].ShardId'`

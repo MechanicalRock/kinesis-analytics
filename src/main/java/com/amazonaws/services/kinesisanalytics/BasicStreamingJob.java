@@ -55,10 +55,10 @@ public class BasicStreamingJob {
         .max(2) // Calculate the maximum value over the window
         // .sum(1) // Should count the number of each stock in the time window
         
-        .map(value -> value.f0 + " ==> " + value.f1 + " : Terminal Velocity: " + value.f2.toString() + "\n")
+        .map(value -> value.f0 + " ==> " + value.f1 + " : Stock Value: " + value.f2.toString() + "\n")
         .addSink(createKinesisDataStreamSink());
 
-        env.execute("Flink data stream processing for racing at Nurburgring");
+        env.execute("Flink data stream processing for live stock trading");
     }
     // Consume from kinesis datastream
     private static DataStream<String> getSourceFromKinesisDataStream(StreamExecutionEnvironment env) {
@@ -74,7 +74,7 @@ public class BasicStreamingJob {
         return env.addSource(new FlinkKinesisConsumer<>(inputStreamName, new SimpleStringSchema(), inputProperties));
     }
 
-    // Output transformed data to kinesis datastream
+    // Output Processed/Transformed data to kinesis datastream
     private static FlinkKinesisProducer<String> createKinesisDataStreamSink() {
         String region = getAppProperty("aws.region", "");
         String outputStreamName = getAppProperty("outputStreamName", "");
@@ -91,13 +91,13 @@ public class BasicStreamingJob {
         return sink;
     }
 
-    // helper method to return runtime properties for Property Group RacingDataConfigProperties defined in Cloudformation Template
+    // helper method to return runtime properties for Property Group TradingDataConfigProperties defined in Cloudformation Template
     private static Properties getRuntimeConfigProperties() {
         try {
             Map<String, Properties> runConfigurations = KinesisAnalyticsRuntime.getApplicationProperties();
-            return (Properties) runConfigurations.get("RacingDataConfigProperties");
+            return (Properties) runConfigurations.get("TradingDataConfigProperties");
         } catch (IOException var1) {
-            LOG.error("Could not retrieve the runtime config properties for {}, exception {}", "RacingDataConfigProperties", var1);
+            LOG.error("Could not retrieve the runtime config properties for {}, exception {}", "TradingDataConfigProperties", var1);
             return null;
         }
     }
