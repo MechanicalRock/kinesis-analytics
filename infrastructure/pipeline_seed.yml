@@ -32,16 +32,6 @@ Parameters:
   BuildSpecFile:
     Type: String
     Description: CodeBuild Spec file for flink app build
-  # Sandbox Account Parameters
-  SandboxAccountId:
-    Type: String
-    Description: The ID of the staging account where build output is deployed.
-  SandboxDeployAssumeRoleName:
-    Type: String
-    Description: The name of the role that is assumed to trigger a cloudformation deployment cross account
-  SandboxDeployActionRoleName:
-    Type: String
-    Description: The name of the role that performs the cloudformation deployment
 
 Resources:
   CodePipelineBucket:
@@ -70,7 +60,6 @@ Resources:
             Principal:
               AWS:
                 - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                - !Sub "arn:aws:iam::${SandboxAccountId}:root"
 
   ArtifactBucket:
     Type: AWS::S3::Bucket
@@ -92,7 +81,6 @@ Resources:
             Principal:
               AWS:
                 - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                - !Sub "arn:aws:iam::${SandboxAccountId}:root"
 
   CloudFormationDeployActionRole:
     Type: 'AWS::IAM::Role'
@@ -157,7 +145,6 @@ Resources:
                   - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*'
                   - !Sub 'arn:aws:s3:::${CodePipelineBucket}'
                   - !Sub 'arn:aws:s3:::${CodePipelineBucket}/*'
-                  - !Sub 'arn:aws:iam::${SandboxAccountId}:role/SandboxCodeBuildAssume'
               - Effect: Allow # Grant access to the shared build KMS key
                 Action:
                   - 'kms:Decrypt'
@@ -213,18 +200,6 @@ Resources:
             Action:
               - kms:*
             Resource: "*"
-          - Sid: Allow use of key in another account
-            Effect: Allow
-            Principal:
-              AWS:
-                - !Sub "arn:aws:iam::${SandboxAccountId}:root"
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:ReEncrypt*
-              - kms:GenerateDataKey*
-              - kms:DescribeKey
-            Resource: "*"
 
   CodePipelineRole:
     Type: 'AWS::IAM::Role'
@@ -246,8 +221,6 @@ Resources:
                 Effect: Allow
                 Resource:
                   - !GetAtt CloudFormationDeployActionRole.Arn
-                  - !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
-                  - !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
               - Action:
                   - s3:GetObject
                   - s3:GetObjectVersion
@@ -346,7 +319,7 @@ Resources:
               InputArtifacts:
                 - Name: !Join ['', [!Ref 'AWS::StackName', 'BuildFlinkApp']]
               RunOrder: 20
-        - Name: SandboxDeployStockTradingAnalytics    
+        - Name: DeployStockTradingAnalytics    
           Actions:
             - Name: DataSource
               ActionTypeId:
@@ -358,10 +331,9 @@ Resources:
                 ActionMode: REPLACE_ON_FAILURE
                 Capabilities: CAPABILITY_NAMED_IAM
                 RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployActionRoleName}"
-                StackName: "RacingDataIngest"
+                StackName: "StockTradingDataIngest"
                 TemplateConfiguration: GitHubSource::infrastructure/stocktrading-data.json
                 TemplatePath: GitHubSource::infrastructure/stocktrading-data.yml
-              RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
               InputArtifacts:
                 - Name: GitHubSource
               RunOrder: 10
@@ -378,7 +350,6 @@ Resources:
                 StackName: "RacingAnalytics"
                 TemplateConfiguration: GitHubSource::infrastructure/stocktrading-analytics.json
                 TemplatePath: GitHubSource::infrastructure/stocktrading-analytics.yml
-              RoleArn: !Sub "arn:aws:iam::${SandboxAccountId}:role/${SandboxDeployAssumeRoleName}"
               InputArtifacts:
                 - Name: GitHubSource
               RunOrder: 20
