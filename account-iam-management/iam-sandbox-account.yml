@@ -20,8 +20,29 @@ Parameters:
     Type: String
     Default: SandboxCodeBuildAssumeName
     Description: The name of the role that is assumed in codebuild
+  BuildKMSKeyArn:
+    Type: String
+    Default: 'kmsKeyArn'
 
 Resources:
+  CloudFormationAssumePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CrossAccountPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:*
+              - s3:*
+              - iam:PassRole
+            Resource: '*'
+          - Effect: Allow
+            Action: ['kms:Decrypt', 'kms:Encrypt']
+            Resource: !Ref BuildKMSKeyArn
+      Roles: [!Ref CloudFormationAssumeRoleName]
+
   CloudFormationAssumeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -33,15 +54,36 @@ Resources:
             Principal:
               AWS: [!Ref ToolingAccountId]
             Action: ['sts:AssumeRole']
-      Path: /
-      Policies:
-        - PolicyName: cross-account-assume-role
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Action: ['*']
-                Resource: ['*']
-                Effect: Allow
+
+  CodeBuildAssumePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CrossAccountPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:*
+              - s3:*
+              - iam:PassRole
+            Resource: '*'
+          - Effect: Allow
+            Action: ['kms:Decrypt', 'kms:Encrypt']
+            Resource: !Ref BuildKMSKeyArn
+      Roles: [!Ref CodeBuildAssumeRoleName]
+
+  CodeBuildAssumeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref CodeBuildAssumeRoleName
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: [!Ref ToolingAccountId]
+            Action: ['sts:AssumeRole']
 
   CloudFormationDeployerRole:
     Type: AWS::IAM::Role
@@ -89,25 +131,4 @@ Resources:
                   - 'ssm:GetParameters'
                 Resource:
                   - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/flink-app-filename'
-
-  CodeBuildAssumeRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Ref CodeBuildAssumeRoleName
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: [!Ref ToolingAccountId]
-            Action: ['sts:AssumeRole']
-      Path: /
-      Policies:
-        - PolicyName: cross-account-assume-role
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Action: ['*']
-                Resource: ['*']
-                Effect: Allow
-
+                  
