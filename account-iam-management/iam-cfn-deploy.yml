@@ -39,7 +39,10 @@ Resources:
           PolicyDocument:
             Version: 2012-10-17
             Statement:
-              - Action: ['*']
+              - Action:
+                  - cloudformation:*
+                  - s3:*
+                  - iam:PassRole
                 Resource: ['*']
                 Effect: Allow
 
@@ -107,7 +110,10 @@ Resources:
           PolicyDocument:
             Version: 2012-10-17
             Statement:
-              - Action: ['*']
+              - Action:
+                  - cloudformation:*
+                  - s3:*
+                  - iam:PassRole
                 Resource: ['*']
                 Effect: Allow
 
