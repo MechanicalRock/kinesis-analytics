@@ -107,6 +107,12 @@ Resources:
                   - 'codebuild:*'
                   - 'secretsmanager:GetSecretValue'
                   - 'ssm:*'
+                  - 'cloudwatch:*'
+                  - 'kinesis:*'
+                  - 'kinesisanalytics:DescribeApplication'
+                  - 'kinesisanalytics:CreateApplication'
+                  - 'kinesisanalytics:UpdateApplication'
+                  - 'logs:*'
                 Effect: Allow
                 Resource: '*'
       RoleName: !Ref CloudFormationDeployActionRoleName 
