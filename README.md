@@ -5,7 +5,7 @@ The CI/CD environment has been configured with a Build/Tooling account and Sandb
 
 Codepipeline performs cross account deployments. 
 
-The account-management folder contains the cloudformation templates which creates the roles required to deploy resources to the Sandbox account. 
+The account-iam-management folder contains the cloudformation templates which creates the roles required to deploy resources to the Sandbox account. 
 
 <center><img src="KinesisAnalytics-CICD.png" /></center><br/>
 
