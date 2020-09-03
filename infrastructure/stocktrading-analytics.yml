@@ -103,7 +103,7 @@ Resources:
     DependsOn: LogStream
     Properties:
       ApplicationName: !Sub '${AppName}-${Environment}'
-      ApplicationDescription: Racing Data
+      ApplicationDescription: Stock Trading Data Analytics
       RuntimeEnvironment: FLINK-1_6
       ServiceExecutionRole: !GetAtt ServiceExecutionRole.Arn
       ApplicationConfiguration:
@@ -132,7 +132,7 @@ Resources:
           SnapshotsEnabled: false
         EnvironmentProperties:
           PropertyGroups:
-            - PropertyGroupId: "RacingDataConfigProperties"
+            - PropertyGroupId: "StoackTradingDataConfigProperties"
               PropertyMap:
                 inputStreamName: !Ref Input
                 outputStreamName: !Ref Output
