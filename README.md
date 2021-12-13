@@ -1,3 +1,6 @@
+**NOTE** This repository is not maintained.  It is unsuitable for production use and probably has known security vulnerabilities.
+
+
 # Kinesis Analytics
 AWS Kinesis Data Analytics - Done the DevOps way
 
